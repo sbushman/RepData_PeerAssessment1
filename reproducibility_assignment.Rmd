@@ -1,0 +1,72 @@
+---
+title: "Core Project"
+author: "Serge"
+date: "7/23/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# JHU Reproducible Research, Assignment 1
+
+Load Packages for use in this exercise
+```{r}
+library('lubridate')
+library('dplyr')
+```
+
+
+Unzip and read in activity file
+```{r}
+
+data <- read.table(unzip('activity.zip'), header = TRUE, sep = ',')
+
+```
+
+Convert date column from factor to date
+```{r}
+data$date <- ymd(as.character(data$date))
+```
+
+
+#Exploratory DAta Analysis
+```{r}
+#How many days does this cover?  288 readings per day, 61 days, starting October 1, 2012, and ending November 30, 2012.
+(data$date)
+
+```
+
+Instead of yielding an actual number of steps for each time segment, most entries are NA.  Specifically, out 17568 rows of data total, 13,318 are NA entries.
+
+```{r}
+nrow(data) - nrow(data %>% filter(steps != is.na(steps)))
+```
+
+
+#What are the mean total number of steps taken per day?
+
+```{r}
+totals <- data %>%
+  group_by(date) %>%
+  summarize(total = sum(steps))
+
+# mean number of steps taken (ignoring days that include NA values)
+round(mean(totals$total, na.rm = TRUE), 0)
+```
+
+```{r}
+hist(data$date)
+```
+
+#Mean Daily Activity Pattern, with NA's removed from calculation of mean.
+
+```{r}
+timeseries <- data %>%
+  group_by(interval) %>%
+  summarize(mean = mean(steps, na.rm = TRUE))
+
+with(timeseries, plot(interval, mean, type = 'l'))
+```
+
