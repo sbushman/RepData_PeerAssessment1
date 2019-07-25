@@ -1,25 +1,162 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "JHU Reproducibility Assignment 1"
+author: "Serge"
+date: "7/23/2019"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+This .RMD file is output to html in fulfillment of the first assignment in the JHU Reproducibility Research course.  
 
-
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
+Load Packages for use in this exercise.  Packages current as of 7/23/2019
+```{r, echo = FALSE}
+library('lubridate')
+library('dplyr')
+library('ggplot2')
+```
 
 
+## Unzip and read in activity file, collected from a clone of [Roger Peng's](https://github.com/rdpeng/RepData_PeerAssessment1) github page, collected July 23, 2019.
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+
+data <- read.table(unzip('activity.zip'), header = TRUE, sep = ',')
+
+```
+
+## Some initial cleaning, additional cleaning occurs along the way: 
+
+Convert date column from factor to date
+```{r}
+data$date <- ymd(as.character(data$date))
+```
+
+Mutate an 'int' column, that reflects interval placement (288 consecutive intervals per day) rather than 5 minute segments in a day.
+```{r}
+data <- cbind(data, int = c(1:288))
+```
+
+
+# What are the mean total number of steps taken per day?
+
+```{r}
+totals <- data %>%
+  group_by(date) %>%
+  summarize(total = sum(steps))
+
+
+hist(totals$total, breaks = 15, main = 'Range of steps taken per day',xlab = 'NUmber of Steps', ylab = 'Number of days steps fall within the range')
+
+```
+
+
+
+
+Mean and median number of steps taken (ignoring any special treatment for NA values)
+
+```{r}
+summary(totals$total)
+```
+
+Here is an isolated calculation of mean, removing NAs:
+```{r}
+round(mean(totals$total, na.rm = TRUE), 0)
+```
+
+Here is an isolated calculation of median, removing NAs:
+
+```{r}
+round(median(totals$total, na.rm = TRUE), 0)
+```
+
+
+# Mean Daily Activity Pattern 
+Time Series Plot, (currently presented in base plotting system)
+
+```{r}
+timeseries <- data %>%
+  group_by(int, interval) %>%
+  summarize(mean = mean(steps, na.rm = TRUE))
+
+timeseries <- as.data.frame(timeseries)
+
+with(timeseries, plot(int, mean, type = 'l', xlab = '288 sequential 5-minute intervals throughout the day', ylab = 'mean steps during the interval', main = 'Mean number of steps by 5 minute intervals'))
+```
+
+
+
+Five minute interval during the day when most steps occur, on average is 8:35 AM
+```{r}
+timeseries[which.max(timeseries$mean),2]
+```
+
+# Impute Missing Values 
+
+There are 2,304 lines with NA's, viewed at the bottom of the 'steps' variable:
+```{r}
+summary(data)
+```
+
+Impute missing values from the average value of that five-minute interval.  "data1" mutates a new column that imputes a value if original value is NA.  Otherwise it copies the existing value.
+
+```{r}
+data1 <- data %>% 
+  mutate(fixna = ifelse(is.na(steps), timeseries[data$int,3], data$steps))
+```
+
+
+Total number of steps taken each day, and histogram
+```{r}
+totals1 <- data1 %>%
+  group_by(date) %>%
+  summarize(total = sum(fixna))
+
+
+hist(totals1$total, breaks = 15, main = 'Range of steps taken per day, including imputes',xlab = 'NUmber of Steps', ylab = 'Number of days steps fall within the range')
+```
+
+Mean and median number of steps taken, including imputed values
+
+```{r}
+summary(totals1$total)
+```
+
+Here is an isolated calculation of mean, including imputed values:
+```{r}
+round(mean(totals1$total, na.rm = TRUE), 0)
+```
+
+Here is an isolated calculation of median, including imputed values:
+```{r}
+round(median(totals1$total, na.rm = TRUE), 0)
+```
+
+Note that because of the imputation methodology I used, the shape of the histogram doesn't change much.  The main difference is increased centralization, because the days that included missing values were added in, and because they were defined as 'average, they fell in the mean/median bin.
+
+# Identify pattern differences between weekends and weekdays
+
+Calculate whether the day is weekday or weekend, and mutate a factor column indicating this.  Then present faceted line chart distinguishing between weekday and weekend.
+
+```{r}
+data2 <- data1 %>% 
+  mutate(weekday = ifelse(weekdays(date) == 'Saturday' | 
+                            weekdays(date) == 'Sunday', 
+                          'weekend', 
+                          'weekday'
+                          )
+         )
+
+data2$weekday <- as.factor(data2$weekday)
+
+timeseries1 <- data2 %>%
+  group_by(int, weekday) %>%
+  summarize(mean = mean(fixna))
+
+timeseries1 <- as.data.frame(timeseries1)
+
+ggplot(timeseries1, aes(x = int, y = mean, color = weekday)) + geom_line() + facet_grid(. ~ weekday) + labs(title = "Mean steps per 5 minute interval, weekdays vs. weekends", subtitle = "10-1-2012 through 11-30-2012", x = '5 minute intervals, starting at midnite', y = 'mean steps during 5 minute interval')
+```
+
